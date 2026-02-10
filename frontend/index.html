@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventário - Gestão de Stock</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>📦 Gestão de Inventário</h1>
+      <p class="subtitle">Aplicação de gestão de stock pessoal</p>
+      <div class="header-actions">
+        <button id="btnExport" class="btn btn-secondary">📥 Exportar JSON</button>
+        <span id="statusIndicator" class="status-indicator">●</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Section: Novo Produto -->
+      <section class="card card-primary">
+        <h2>➕ Adicionar Novo Produto</h2>
+        <form id="formNewProduct" class="form">
+          <div class="form-group">
+            <label for="productName">Nome do Produto</label>
+            <input type="text" id="productName" placeholder="Ex: Parafuso M8" required>
+          </div>
+          <div class="form-group">
+            <label for="productStock">Stock Inicial</label>
+            <input type="number" id="productStock" min="0" value="0" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Criar Produto</button>
+        </form>
+      </section>
+
+      <!-- Section: Operações de Stock -->
+      <section class="card card-info">
+        <h2>📊 Operações de Stock</h2>
+        <div class="operations-grid">
+          <!-- Entrada de Stock -->
+          <div class="operation-form">
+            <h3>Entrada (IN)</h3>
+            <form id="formStockIn" class="form-compact">
+              <div class="form-group">
+                <label for="productSelectIn">Produto</label>
+                <select id="productSelectIn" required>
+                  <option value="">-- Selecionar --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="quantityIn">Quantidade</label>
+                <input type="number" id="quantityIn" min="1" value="1" required>
+              </div>
+              <div class="form-group">
+                <label for="notesIn">Notas (opcional)</label>
+                <input type="text" id="notesIn" placeholder="Ex: Compra fornecedor">
+              </div>
+              <button type="submit" class="btn btn-success">➕ Adicionar Stock</button>
+            </form>
+          </div>
+
+          <!-- Saída de Stock -->
+          <div class="operation-form">
+            <h3>Saída (OUT)</h3>
+            <form id="formStockOut" class="form-compact">
+              <div class="form-group">
+                <label for="productSelectOut">Produto</label>
+                <select id="productSelectOut" required>
+                  <option value="">-- Selecionar --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="quantityOut">Quantidade</label>
+                <input type="number" id="quantityOut" min="1" value="1" required>
+              </div>
+              <div class="form-group">
+                <label for="notesOut">Notas (opcional)</label>
+                <input type="text" id="notesOut" placeholder="Ex: Venda cliente">
+              </div>
+              <button type="submit" class="btn btn-warning">➖ Remover Stock</button>
+            </form>
+          </div>
+
+          <!-- Ajuste de Stock -->
+          <div class="operation-form">
+            <h3>Ajuste (ADJUST)</h3>
+            <form id="formStockAdjust" class="form-compact">
+              <div class="form-group">
+                <label for="productSelectAdjust">Produto</label>
+                <select id="productSelectAdjust" required>
+                  <option value="">-- Selecionar --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="quantityAdjust">Novo Stock</label>
+                <input type="number" id="quantityAdjust" min="0" value="0" required>
+              </div>
+              <div class="form-group">
+                <label for="notesAdjust">Motivo</label>
+                <input type="text" id="notesAdjust" placeholder="Ex: Contagem física">
+              </div>
+              <button type="submit" class="btn btn-info">🔄 Ajustar Stock</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Tabela de Produtos -->
+      <section class="card">
+        <h2>📋 Produtos</h2>
+        <div class="table-responsive">
+          <table id="productsTable" class="table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th class="text-center">Stock Atual</th>
+                <th class="text-center">Status</th>
+                <th class="text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody">
+              <tr class="placeholder">
+                <td colspan="4" class="text-center">Carregando produtos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: Histórico de Eventos -->
+      <section class="card">
+        <h2>📜 Histórico de Movimentos</h2>
+        <div class="history-controls">
+          <button id="btnRefreshHistory" class="btn btn-small">🔄 Atualizar</button>
+          <span id="eventCount" class="event-count">0 eventos</span>
+        </div>
+        <div class="table-responsive">
+          <table id="eventsTable" class="table table-compact">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Produto</th>
+                <th class="text-center">Tipo</th>
+                <th class="text-center">Qtd.</th>
+                <th>Notas</th>
+              </tr>
+            </thead>
+            <tbody id="eventsTableBody">
+              <tr class="placeholder">
+                <td colspan="5" class="text-center">Carregando histórico...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Notifications -->
+    <div id="notificationContainer" class="notification-container"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="api.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
