@@ -2,31 +2,46 @@ const express = require('express');
 const router = express.Router();
 const { StockModel, ProductModel } = require('../models');
 
-/**
- * POST /stock/in
- * Adicionar stock (entrada)
- * Body: { productId: string, quantity: number, notes?: string }
- */
-router.post('/in', (req, res) => {
+/* =======================
+   Helpers
+   ======================= */
+function isValidId(id) {
+  return typeof id === 'string' && id.trim().length > 0;
+}
+
+function parsePositiveInt(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function parseNonNegativeInt(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+/* =======================
+   POST /stock/in
+   ======================= */
+router.post('/in', async (req, res, next) => {
   try {
     const { productId, quantity, notes } = req.body;
 
-    if (!productId || typeof productId !== 'string') {
+    if (!isValidId(productId)) {
       return res.status(400).json({
         success: false,
         error: 'Product ID is required'
       });
     }
 
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    const qty = parsePositiveInt(quantity);
+    if (!qty) {
       return res.status(400).json({
         success: false,
         error: 'Quantity must be a positive integer'
       });
     }
 
-    // Verificar se produto existe
-    const product = ProductModel.getById(productId);
+    const product = await ProductModel.getById(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -34,7 +49,7 @@ router.post('/in', (req, res) => {
       });
     }
 
-    const result = StockModel.addStock(productId, quantity, notes || '');
+    const result = await StockModel.addStock(productId, qty, notes ?? '');
 
     res.status(201).json({
       success: true,
@@ -42,38 +57,33 @@ router.post('/in', (req, res) => {
       data: result
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 });
 
-/**
- * POST /stock/out
- * Remover stock (saída)
- * Body: { productId: string, quantity: number, notes?: string }
- */
-router.post('/out', (req, res) => {
+/* =======================
+   POST /stock/out
+   ======================= */
+router.post('/out', async (req, res, next) => {
   try {
     const { productId, quantity, notes } = req.body;
 
-    if (!productId || typeof productId !== 'string') {
+    if (!isValidId(productId)) {
       return res.status(400).json({
         success: false,
         error: 'Product ID is required'
       });
     }
 
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    const qty = parsePositiveInt(quantity);
+    if (!qty) {
       return res.status(400).json({
         success: false,
         error: 'Quantity must be a positive integer'
       });
     }
 
-    // Verificar se produto existe
-    const product = ProductModel.getById(productId);
+    const product = await ProductModel.getById(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -81,7 +91,7 @@ router.post('/out', (req, res) => {
       });
     }
 
-    const result = StockModel.removeStock(productId, quantity, notes || '');
+    const result = await StockModel.removeStock(productId, qty, notes ?? '');
 
     res.status(201).json({
       success: true,
@@ -89,38 +99,33 @@ router.post('/out', (req, res) => {
       data: result
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 });
 
-/**
- * POST /stock/adjust
- * Ajustar stock (correção de inventário)
- * Body: { productId: string, newQuantity: number, notes?: string }
- */
-router.post('/adjust', (req, res) => {
+/* =======================
+   POST /stock/adjust
+   ======================= */
+router.post('/adjust', async (req, res, next) => {
   try {
     const { productId, newQuantity, notes } = req.body;
 
-    if (!productId || typeof productId !== 'string') {
+    if (!isValidId(productId)) {
       return res.status(400).json({
         success: false,
         error: 'Product ID is required'
       });
     }
 
-    if (!Number.isInteger(newQuantity) || newQuantity < 0) {
+    const qty = parseNonNegativeInt(newQuantity);
+    if (qty === null) {
       return res.status(400).json({
         success: false,
         error: 'New quantity must be a non-negative integer'
       });
     }
 
-    // Verificar se produto existe
-    const product = ProductModel.getById(productId);
+    const product = await ProductModel.getById(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -128,7 +133,7 @@ router.post('/adjust', (req, res) => {
       });
     }
 
-    const result = StockModel.adjustStock(productId, newQuantity, notes || '');
+    const result = await StockModel.adjustStock(productId, qty, notes ?? '');
 
     res.status(201).json({
       success: true,
@@ -136,25 +141,20 @@ router.post('/adjust', (req, res) => {
       data: result
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 });
 
-/**
- * GET /stock/events
- * Obter histórico de eventos de stock
- * Query: { limit?: number, offset?: number }
- */
-router.get('/events', (req, res) => {
+/* =======================
+   GET /stock/events
+   ======================= */
+router.get('/events', async (req, res, next) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = Math.min(Number(req.query.limit) || 100, 1000);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-    const events = StockModel.getAllEvents(limit, offset);
-    const summary = StockModel.getEventsSummary();
+    const events = await StockModel.getAllEvents(limit, offset);
+    const summary = await StockModel.getEventsSummary();
 
     res.json({
       success: true,
@@ -169,24 +169,25 @@ router.get('/events', (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 });
 
-/**
- * GET /stock/events/:productId
- * Obter eventos de um produto específico
- * Query: { limit?: number, offset?: number }
- */
-router.get('/events/:productId', (req, res) => {
+/* =======================
+   GET /stock/events/:productId
+   ======================= */
+router.get('/events/:productId', async (req, res, next) => {
   try {
     const { productId } = req.params;
 
-    // Verificar se produto existe
-    const product = ProductModel.getById(productId);
+    if (!isValidId(productId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid product ID'
+      });
+    }
+
+    const product = await ProductModel.getById(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -194,10 +195,10 @@ router.get('/events/:productId', (req, res) => {
       });
     }
 
-    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = Math.min(Number(req.query.limit) || 50, 500);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-    const events = StockModel.getEventsByProductId(productId, limit, offset);
+    const events = await StockModel.getEventsByProductId(productId, limit, offset);
 
     res.json({
       success: true,
@@ -212,10 +213,7 @@ router.get('/events/:productId', (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 });
 

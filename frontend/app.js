@@ -12,23 +12,24 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProducts();
   setupEventListeners();
   checkServerStatus();
-  setInterval(checkServerStatus, 10000); // Check a cada 10s
+  setInterval(checkServerStatus, 10000);
+  setTimeout(loadEvents, 500);
 });
 
 // ============ Setup de Event Listeners ============
 
 function setupEventListeners() {
-  // Form: Novo Produto
-  document.getElementById('formNewProduct').addEventListener('submit', handleNewProduct);
+  const bind = (id, event, handler) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(event, handler);
+  };
 
-  // Forms: Stock Operations
-  document.getElementById('formStockIn').addEventListener('submit', handleStockIn);
-  document.getElementById('formStockOut').addEventListener('submit', handleStockOut);
-  document.getElementById('formStockAdjust').addEventListener('submit', handleStockAdjust);
-
-  // Buttons
-  document.getElementById('btnExport').addEventListener('click', exportToJSON);
-  document.getElementById('btnRefreshHistory').addEventListener('click', loadEvents);
+  bind('formNewProduct', 'submit', handleNewProduct);
+  bind('formStockIn', 'submit', handleStockIn);
+  bind('formStockOut', 'submit', handleStockOut);
+  bind('formStockAdjust', 'submit', handleStockAdjust);
+  bind('btnExport', 'click', exportToJSON);
+  bind('btnRefreshHistory', 'click', loadEvents);
 }
 
 // ============ Produtos ============
@@ -36,7 +37,19 @@ function setupEventListeners() {
 async function loadProducts() {
   try {
     const response = await InventoryAPI.getProducts();
-    productsCache = response.data || [];
+
+    // Se response.data não for array, converte para array vazio
+    if (Array.isArray(response.data)) {
+      productsCache = response.data;
+    } else if (response.data && typeof response.data === 'object') {
+      // Se for objeto, tenta extrair produtos de um campo 'products', senão vazio
+      productsCache = Array.isArray(response.data.products)
+        ? response.data.products
+        : [];
+    } else {
+      productsCache = [];
+    }
+
     renderProductsTable();
     updateProductSelects();
   } catch (error) {
@@ -47,31 +60,31 @@ async function loadProducts() {
 
 function renderProductsTable() {
   const tbody = document.getElementById('productsTableBody');
+  if (!tbody) return;
 
   if (productsCache.length === 0) {
     tbody.innerHTML = '<tr class="placeholder"><td colspan="4" class="text-center">Nenhum produto adicionado</td></tr>';
     return;
   }
 
-  tbody.innerHTML = productsCache
-    .map(product => {
-      const status = getStockStatus(product.stock);
-      const statusClass = getStatusClass(product.stock);
+  tbody.innerHTML = productsCache.map(product => {
+    const status = getStockStatus(product.stock);
+    const statusClass = getStatusClass(product.stock);
 
-      return `
-        <tr class="product-row">
-          <td><strong>${escapeHtml(product.name)}</strong></td>
-          <td class="text-center"><span class="stock-badge">${product.stock}</span></td>
-          <td class="text-center"><span class="status-badge ${statusClass}">${status}</span></td>
-          <td class="text-center">
-            <button class="btn btn-small btn-danger" onclick="confirmDeleteProduct('${product.id}', '${escapeHtml(product.name)}')">
-              🗑️ Deletar
-            </button>
-          </td>
-        </tr>
-      `;
-    })
-    .join('');
+    return `
+      <tr class="product-row">
+        <td><strong>${escapeHtml(product.name)}</strong></td>
+        <td class="text-center"><span class="stock-badge">${product.stock}</span></td>
+        <td class="text-center"><span class="status-badge ${statusClass}">${status}</span></td>
+        <td class="text-center">
+          <button class="btn btn-small btn-danger"
+            onclick="confirmDeleteProduct('${product.id}', '${escapeHtml(product.name)}')">
+            🗑️ Deletar
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function updateProductSelects() {
@@ -80,20 +93,27 @@ function updateProductSelects() {
     .map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
     .join('');
 
-  selects.forEach(selectId => {
-    const select = document.getElementById(selectId);
-    select.innerHTML = '<option value="">-- Selecionar --</option>' + options;
+  selects.forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      select.innerHTML = '<option value="">-- Selecionar --</option>' + options;
+    }
   });
 }
 
 async function handleNewProduct(e) {
   e.preventDefault();
 
-  const name = document.getElementById('productName').value.trim();
-  const initialStock = parseInt(document.getElementById('productStock').value) || 0;
+  const name = document.getElementById('productName')?.value.trim();
+  const initialStock = parseInt(document.getElementById('productStock')?.value, 10) || 0;
 
   if (!name) {
     showNotification('Nome do produto é obrigatório', 'error');
+    return;
+  }
+
+  if (!Number.isInteger(initialStock) || initialStock < 0) {
+    showNotification('Stock inicial inválido', 'error');
     return;
   }
 
@@ -101,8 +121,7 @@ async function handleNewProduct(e) {
     showNotification('Criando produto...', 'info');
     await InventoryAPI.createProduct(name, initialStock);
     showNotification(`Produto "${name}" criado com sucesso!`, 'success');
-
-    document.getElementById('formNewProduct').reset();
+    e.target.reset();
     loadProducts();
   } catch (error) {
     showNotification(error.message, 'error');
@@ -118,7 +137,7 @@ async function confirmDeleteProduct(productId, productName) {
   try {
     showNotification('Deletando produto...', 'info');
     await InventoryAPI.deleteProduct(productId);
-    showNotification(`Produto deletado com sucesso`, 'success');
+    showNotification('Produto deletado com sucesso', 'success');
     loadProducts();
     loadEvents();
   } catch (error) {
@@ -132,12 +151,17 @@ async function confirmDeleteProduct(productId, productName) {
 async function handleStockIn(e) {
   e.preventDefault();
 
-  const productId = document.getElementById('productSelectIn').value;
-  const quantity = parseInt(document.getElementById('quantityIn').value);
-  const notes = document.getElementById('notesIn').value.trim();
+  const productId = document.getElementById('productSelectIn')?.value;
+  const quantity = parseInt(document.getElementById('quantityIn')?.value, 10);
+  const notes = document.getElementById('notesIn')?.value.trim();
 
   if (!productId) {
     showNotification('Selecione um produto', 'error');
+    return;
+  }
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    showNotification('Quantidade inválida', 'error');
     return;
   }
 
@@ -145,7 +169,6 @@ async function handleStockIn(e) {
     showNotification('Adicionando stock...', 'info');
     await InventoryAPI.addStock(productId, quantity, notes);
     showNotification('Stock adicionado com sucesso!', 'success');
-
     e.target.reset();
     loadProducts();
     loadEvents();
@@ -158,12 +181,17 @@ async function handleStockIn(e) {
 async function handleStockOut(e) {
   e.preventDefault();
 
-  const productId = document.getElementById('productSelectOut').value;
-  const quantity = parseInt(document.getElementById('quantityOut').value);
-  const notes = document.getElementById('notesOut').value.trim();
+  const productId = document.getElementById('productSelectOut')?.value;
+  const quantity = parseInt(document.getElementById('quantityOut')?.value, 10);
+  const notes = document.getElementById('notesOut')?.value.trim();
 
   if (!productId) {
     showNotification('Selecione um produto', 'error');
+    return;
+  }
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    showNotification('Quantidade inválida', 'error');
     return;
   }
 
@@ -171,7 +199,6 @@ async function handleStockOut(e) {
     showNotification('Removendo stock...', 'info');
     await InventoryAPI.removeStock(productId, quantity, notes);
     showNotification('Stock removido com sucesso!', 'success');
-
     e.target.reset();
     loadProducts();
     loadEvents();
@@ -184,12 +211,17 @@ async function handleStockOut(e) {
 async function handleStockAdjust(e) {
   e.preventDefault();
 
-  const productId = document.getElementById('productSelectAdjust').value;
-  const newQuantity = parseInt(document.getElementById('quantityAdjust').value);
-  const notes = document.getElementById('notesAdjust').value.trim();
+  const productId = document.getElementById('productSelectAdjust')?.value;
+  const newQuantity = parseInt(document.getElementById('quantityAdjust')?.value, 10);
+  const notes = document.getElementById('notesAdjust')?.value.trim();
 
   if (!productId) {
     showNotification('Selecione um produto', 'error');
+    return;
+  }
+
+  if (!Number.isInteger(newQuantity) || newQuantity < 0) {
+    showNotification('Quantidade inválida', 'error');
     return;
   }
 
@@ -197,7 +229,6 @@ async function handleStockAdjust(e) {
     showNotification('Ajustando stock...', 'info');
     await InventoryAPI.adjustStock(productId, newQuantity, notes);
     showNotification('Stock ajustado com sucesso!', 'success');
-
     e.target.reset();
     loadProducts();
     loadEvents();
@@ -207,15 +238,15 @@ async function handleStockAdjust(e) {
   }
 }
 
-// ============ Eventos/Histórico ============
+// ============ Eventos / Histórico ============
 
 async function loadEvents() {
   try {
     const response = await InventoryAPI.getEvents(100);
-    const events = response.data.events || [];
+    const events = response.data?.events || [];
     renderEventsTable(events);
-
-    document.getElementById('eventCount').textContent = `${events.length} eventos`;
+    const countEl = document.getElementById('eventCount');
+    if (countEl) countEl.textContent = `${events.length} eventos`;
   } catch (error) {
     showNotification(error.message, 'error');
     console.error(error);
@@ -224,48 +255,45 @@ async function loadEvents() {
 
 function renderEventsTable(events) {
   const tbody = document.getElementById('eventsTableBody');
+  if (!tbody) return;
 
   if (events.length === 0) {
     tbody.innerHTML = '<tr class="placeholder"><td colspan="5" class="text-center">Nenhum evento registado</td></tr>';
     return;
   }
 
-  tbody.innerHTML = events
-    .map(event => {
-      const date = new Date(event.created_at).toLocaleString('pt-PT');
-      const product = getProductName(event.product_id);
-      const typeClass = getEventTypeClass(event.type);
+  tbody.innerHTML = events.map(event => {
+    const date = new Date(event.created_at).toLocaleString('pt-PT');
+    const product = getProductName(event.product_id);
+    const typeClass = getEventTypeClass(event.type);
 
-      return `
-        <tr>
-          <td><small>${date}</small></td>
-          <td>${escapeHtml(product)}</td>
-          <td class="text-center"><span class="event-type ${typeClass}">${event.type}</span></td>
-          <td class="text-center"><strong>${event.quantity}</strong></td>
-          <td><small>${escapeHtml(event.notes || '—')}</small></td>
-        </tr>
-      `;
-    })
-    .join('');
+    return `
+      <tr>
+        <td><small>${date}</small></td>
+        <td>${escapeHtml(product)}</td>
+        <td class="text-center"><span class="event-type ${typeClass}">${event.type}</span></td>
+        <td class="text-center"><strong>${event.quantity}</strong></td>
+        <td><small>${escapeHtml(event.notes ?? '—')}</small></td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // ============ Export ============
 
 async function exportToJSON() {
   try {
-    const products = productsCache;
     const response = await InventoryAPI.getEvents(10000);
-    const events = response.data.events || [];
+    const events = response.data?.events || [];
 
     const exportData = {
       exportedAt: new Date().toISOString(),
-      products,
+      products: productsCache,
       stockEvents: events
     };
 
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
     link.href = url;
@@ -280,22 +308,23 @@ async function exportToJSON() {
   }
 }
 
-// ============ Status & Health Check ============
+// ============ Status / Health ============
 
 async function checkServerStatus() {
-  const isOnline = await InventoryAPI.checkHealth();
   const indicator = document.getElementById('statusIndicator');
+  if (!indicator) return;
 
-  if (isOnline) {
-    indicator.className = 'status-indicator online';
-    indicator.title = 'Servidor online';
-  } else {
+  try {
+    const isOnline = await InventoryAPI.checkHealth();
+    indicator.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
+    indicator.title = isOnline ? 'Servidor online' : 'Servidor offline';
+  } catch {
     indicator.className = 'status-indicator offline';
     indicator.title = 'Servidor offline';
   }
 }
 
-// ============ Utility Functions ============
+// ============ Utils ============
 
 function getProductName(productId) {
   const product = productsCache.find(p => p.id === productId);
@@ -317,41 +346,34 @@ function getStatusClass(stock) {
 }
 
 function getEventTypeClass(type) {
-  const classes = {
-    'IN': 'type-in',
-    'OUT': 'type-out',
-    'ADJUST': 'type-adjust'
-  };
-  return classes[type] || '';
+  return { IN: 'type-in', OUT: 'type-out', ADJUST: 'type-adjust' }[type] || '';
 }
 
 function escapeHtml(text) {
-  const map = {
+  if (text === null || text === undefined) return '';
+  return String(text).replace(/[&<>"']/g, m => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, m => map[m]);
+  }[m]));
 }
 
 // ============ Notifications ============
 
 function showNotification(message, type = 'info') {
   const container = document.getElementById('notificationContainer');
+  if (!container) return;
+
   const notification = document.createElement('div');
   notification.className = `notification notification-${type}`;
   notification.textContent = message;
 
   container.appendChild(notification);
 
-  // Auto-remove após 5 segundos
   setTimeout(() => {
     notification.classList.add('fade-out');
     setTimeout(() => notification.remove(), 300);
   }, 5000);
 }
-
-// Carrega eventos ao iniciar
-setTimeout(loadEvents, 500);

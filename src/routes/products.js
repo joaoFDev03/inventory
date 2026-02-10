@@ -6,9 +6,9 @@ const { ProductModel, StockModel } = require('../models');
  * GET /products
  * Obter todos os produtos com stock atual
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const products = ProductModel.getAll();
+    const products = await ProductModel.getAll();
     res.json({
       success: true,
       data: products,
@@ -26,9 +26,9 @@ router.get('/', (req, res) => {
  * GET /products/:id
  * Obter detalhes de um produto
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const product = ProductModel.getById(req.params.id);
+    const product = await ProductModel.getById(req.params.id);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -36,8 +36,7 @@ router.get('/:id', (req, res) => {
       });
     }
 
-    // Obter eventos recentes do produto
-    const events = StockModel.getEventsByProductId(product.id, 10);
+    const events = await StockModel.getEventsByProductId(product.id, 10);
 
     res.json({
       success: true,
@@ -59,7 +58,7 @@ router.get('/:id', (req, res) => {
  * Criar novo produto
  * Body: { name: string, initialStock?: number }
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { name, initialStock } = req.body;
 
@@ -78,13 +77,13 @@ router.post('/', (req, res) => {
       });
     }
 
-    const product = ProductModel.create(name, stock);
+    const product = await ProductModel.create(name, stock);
+
     res.status(201).json({
       success: true,
       data: product
     });
   } catch (error) {
-    // Verificar se é erro de nome duplicado
     if (error.message.includes('UNIQUE constraint failed')) {
       return res.status(409).json({
         success: false,
@@ -103,9 +102,9 @@ router.post('/', (req, res) => {
  * DELETE /products/:id
  * Deletar produto (remove histórico associado)
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const product = ProductModel.getById(req.params.id);
+    const product = await ProductModel.getById(req.params.id);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -113,7 +112,8 @@ router.delete('/:id', (req, res) => {
       });
     }
 
-    ProductModel.delete(req.params.id);
+    await ProductModel.delete(req.params.id);
+
     res.json({
       success: true,
       message: 'Product deleted successfully',
