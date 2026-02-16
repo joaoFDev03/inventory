@@ -25,7 +25,7 @@ class ProductModel {
       try {
         // 1. Criar produto
         await db.run(
-          'INSERT INTO products (id, name, stock) VALUES (?, ?, ?)',
+          'INSERT INTO products (id, name, stock) VALUES ($1, $2, $3)',
           [productId, name.trim(), 0]
         );
 
@@ -33,13 +33,13 @@ class ProductModel {
         if (initialStock > 0) {
           const eventId = uuidv4();
           await db.run(
-            'INSERT INTO stock_events (id, product_id, type, quantity, notes) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO stock_events (id, product_id, type, quantity, notes) VALUES ($1, $2, $3, $4, $5)',
             [eventId, productId, 'IN', initialStock, 'Initial stock']
           );
 
           // 3. Atualizar stock do produto
           await db.run(
-            'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            'UPDATE products SET stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
             [initialStock, productId]
           );
         }
@@ -52,7 +52,7 @@ class ProductModel {
 
       return this.getById(productId);
     } catch (error) {
-      if (error.message.includes('UNIQUE constraint failed')) {
+      if (error.message.includes('unique constraint') || error.message.includes('UNIQUE')) {
         throw new Error('Product with this name already exists');
       }
       throw error;
@@ -63,7 +63,7 @@ class ProductModel {
    * Obter produto por ID
    */
   static async getById(id) {
-    return await db.get('SELECT * FROM products WHERE id = ?', [id]);
+    return await db.get('SELECT * FROM products WHERE id = $1', [id]);
   }
 
   /**
@@ -71,7 +71,6 @@ class ProductModel {
    */
   static async getAll() {
     return await db.all('SELECT * FROM products ORDER BY created_at DESC');
-    
   }
 
   /**
@@ -83,7 +82,7 @@ class ProductModel {
       throw new Error('Product not found');
     }
 
-    await db.run('DELETE FROM products WHERE id = ?', [id]);
+    await db.run('DELETE FROM products WHERE id = $1', [id]);
     return true;
   }
 }
@@ -164,13 +163,13 @@ class StockModel {
 
       try {
         await db.run(
-          'INSERT INTO stock_events (id, product_id, type, quantity, notes) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO stock_events (id, product_id, type, quantity, notes) VALUES ($1, $2, $3, $4, $5)',
           [eventId, productId, 'ADJUST', Math.abs(difference), 
            `${notes} (From ${product.stock} to ${newQuantity})`]
         );
 
         await db.run(
-          'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          'UPDATE products SET stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [newQuantity, productId]
         );
 
@@ -201,14 +200,14 @@ class StockModel {
       try {
         // 1. Registar evento
         await db.run(
-          'INSERT INTO stock_events (id, product_id, type, quantity, notes) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO stock_events (id, product_id, type, quantity, notes) VALUES ($1, $2, $3, $4, $5)',
           [eventId, productId, type, quantity, notes]
         );
 
         // 2. Atualizar stock do produto
         const operation = type === 'OUT' ? '-' : '+';
         await db.run(
-          `UPDATE products SET stock = stock ${operation} ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE products SET stock = stock ${operation} $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
           [quantity, productId]
         );
 
@@ -231,7 +230,7 @@ class StockModel {
    * Obter evento de stock por ID
    */
   static async getEventById(id) {
-    return await db.get('SELECT * FROM stock_events WHERE id = ?', [id]);
+    return await db.get('SELECT * FROM stock_events WHERE id = $1', [id]);
   }
 
   /**
@@ -239,7 +238,7 @@ class StockModel {
    */
   static async getAllEvents(limit = 100, offset = 0) {
     return await db.all(
-      'SELECT * FROM stock_events ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      'SELECT * FROM stock_events ORDER BY created_at DESC LIMIT $1 OFFSET $2',
       [limit, offset]
     );
   }
@@ -249,7 +248,7 @@ class StockModel {
    */
   static async getEventsByProductId(productId, limit = 50, offset = 0) {
     return await db.all(
-      'SELECT * FROM stock_events WHERE product_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      'SELECT * FROM stock_events WHERE product_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [productId, limit, offset]
     );
   }
